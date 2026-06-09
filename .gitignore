@@ -1,0 +1,9 @@
+# build outputs
+build/
+build-*/
+fd-inspector/build/
+fd-inspector/build-*/
+
+# local planning docs
+操作系统规划.md
+fd-inspector实现文档.md
