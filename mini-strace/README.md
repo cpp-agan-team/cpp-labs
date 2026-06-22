@@ -1,6 +1,6 @@
 # mini-strace
 
-> 基于 ptrace 的 x86_64 Linux syscall 跟踪器 —— 从 syscall 事件流、参数解码、fd/VMA/socket 状态关联到 seccomp-BPF 过滤、错误注入与证据级诊断。
+> 基于 ptrace 的  Linux syscall 跟踪器 —— 从 syscall 事件流、参数解码、fd/VMA/socket 状态关联到 seccomp-BPF 过滤、错误注入与证据级诊断。
 
 ## 目录
 
@@ -12,7 +12,6 @@
 - [技术栈](#技术栈)
 - [Demos](#demos)
 - [使用场景与实战](#使用场景与实战)
-- [边界与权限](#边界与权限)
 - [许可说明](#许可说明)
 
 ---
@@ -85,7 +84,6 @@
    └─ 输出聚合 ── 文本 (strace-like) / JSON Lines / summary / io-latency / net / 诊断
 ```
 
-> 关键边界（README 显著位置）：ptrace 每个 syscall 至少**两次停顿**，会明显拖慢 tracee，适合调试/采样而非常态挂高吞吐进程。看到的是**内核 syscall ABI**（`open`→`openat`），不是 C 库函数；vDSO 调用（如部分 `clock_gettime`）走用户态不产生 syscall-stop，看不到不代表没发生。
 
 ---
 
@@ -229,8 +227,6 @@ mini-strace/
     └── benchmark_smoke.sh          # ptrace 开销 benchmark
 ```
 
-> 编译产物默认输出到 `build/`。
-
 ### 模块职责
 
 接管与事件循环：
@@ -278,11 +274,6 @@ mini-strace/
 
 ## 技术栈
 
-- **语言**：C++17（`std::optional`、`std::array`、结构化绑定等）
-- **构建**：CMake 3.20+，CTest 驱动冒烟与 schema/benchmark 脚本；`mini_strace_warnings` interface target 固化 `-Wall -Wextra -Wshadow`
-- **编译器**：GCC / Clang（C++17）
-- **零第三方依赖**：仅用标准库 + Linux 系统调用；JSON 输出自实现，测试用裸 `assert` + CTest + shell 断言，不引入测试框架
-
 涉及的 Linux 内核接口（项目的核心学习价值所在）：
 
 | 类别 | 接口 |
@@ -295,7 +286,6 @@ mini-strace/
 | 计时 | `clock_gettime(CLOCK_MONOTONIC)` 打 entry/exit 时间戳 |
 | /proc | `/proc/<pid>/task`（线程枚举）、`/proc/<pid>/status`（tgid）、ptrace_scope 权限解释 |
 
-C++ 工程实践：RAII（`UniqueFd`）封装内核资源、按 tid 隔离 pending 的状态机、解码与采集/输出分层、不可信长度封顶与 memcpy 前置守卫、读取失败 `<unreadable>` 降级不中断。
 
 ---
 
@@ -451,18 +441,6 @@ kill $pid 2>/dev/null
 
 ---
 
-## 边界与权限
-
-- **架构**：当前仅支持 Linux x86_64；其他架构 syscall 号/参数寄存器/返回值规则不同，需另写适配层。
-- **性能**：ptrace 每个 syscall 至少两次停顿，显著拖慢 tracee，适合调试/短时采样，不适合常态挂高吞吐进程。需要近零开销请用 eBPF/ftrace/perf。
-- **attach 权限**：`--pid` 受 ptrace 权限模型限制，可能被 Yama `ptrace_scope`、uid、缺 `CAP_SYS_PTRACE` 拦住；失败时给提示。
-- **观测盲区**：看到的是内核 syscall ABI（`open`→`openat`、`exit`→`exit_group`）；vDSO 调用（部分 `clock_gettime/gettimeofday`）走用户态不产生 syscall-stop；被信号打断的 syscall 可能出现 `restart_syscall`。
-- **解码降级**：`process_vm_readv` 读字符串可能失败，输出 `<unreadable:EFAULT>` 是正常边界；未知 syscall 走 raw 输出。
-- **状态模型**：fd/VMA/socket 上下文是**增量推断**，attach 前的状态依赖 `/proc` seed，标 `known=false`/`inferred`，不是内核真值；完整 VMA 模型（精确 split/merge/RSS）见 `mem-map-viewer`。
-- **seccomp-BPF**：需要在 tracee 侧 `PR_SET_NO_NEW_PRIVS` 后安装；cBPF 只能按 syscall 号/常量参数过滤，路径等字符串过滤仍回用户态。
-- **正确性对标**：与 `strace` 的固定行为做对标测试，环境缺 `strace` 时 skip，不把「没跑对标」说成「已通过对标」。
-
----
 
 ## 许可说明
 
